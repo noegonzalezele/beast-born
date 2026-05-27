@@ -331,7 +331,8 @@
         }
     }
 
-    const keys = { arrowup: false, arrowdown: false, arrowleft: false, arrowright: false, ' ': false, alt: false, shift: false, v: false, x: false, c: false, z: false };
+    // Se añadió 'jump: false' para uso exclusivo de la pantalla táctil
+    const keys = { arrowup: false, arrowdown: false, arrowleft: false, arrowright: false, ' ': false, alt: false, shift: false, v: false, x: false, c: false, z: false, jump: false };
     const joyData = { active: false, dx: 0, dy: 0 };
 
     window.addEventListener('keydown', e => { let k=e.key.toLowerCase(); if(k===' ')k=' '; if(keys.hasOwnProperty(k)){ keys[k]=true; if(['arrowup','arrowdown','arrowleft','arrowright',' ','alt','shift','v'].includes(k)) e.preventDefault();} });
@@ -393,7 +394,8 @@
             btn.addEventListener('mouseup', release);
             btn.addEventListener('mouseleave', release);
         };
-        bindBtn('btn-j', ' '); bindBtn('btn-k', 'v'); bindBtn('btn-u', 'x'); bindBtn('btn-p', 'c'); bindBtn('btn-w', 'z');
+        // Se cambió 'v' por 'jump' para independizar el botón de los teclados virtuales
+        bindBtn('btn-j', ' '); bindBtn('btn-k', 'jump'); bindBtn('btn-u', 'x'); bindBtn('btn-p', 'c'); bindBtn('btn-w', 'z');
     };
     setupTouch();
 
@@ -688,9 +690,10 @@
                     if(dx > 0 && !bossActive) levelProgress += dx * this.speed * dt * 4;
                 } else { this.vx = 0; this.vy = 0; this.state = 'idle'; }
 
-                if((keys.alt || keys.shift || keys.v) && this.isGrounded) { 
+                // Se agregó keys.jump al detector de salto
+                if((keys.jump || keys.alt || keys.shift || keys.v) && this.isGrounded) { 
                     this.vz = 9.0; 
-                    keys.alt = false; keys.shift = false; keys.v = false; 
+                    keys.alt = false; keys.shift = false; keys.v = false; keys.jump = false; 
                     playRetroSound('jump'); 
                 }
 
@@ -1021,52 +1024,87 @@
             let lunge = (this.state === 'attack') ? (isBeast?12:6) : 0;
             ctx.translate(lunge, 0);
 
-            let s = isBeast ? 1.4 : 0.8; ctx.scale(s, s);
+            // Escala aumentada ligeramente para acomodar el pelaje abundante
+            let s = isBeast ? 1.4 : 0.95; ctx.scale(s, s);
 
-            let drawOutlinedRect = (x, y, w, h, fill) => {
-                ctx.fillStyle = '#000'; ctx.fillRect(x-1, y-1, w+2, h+2);
-                ctx.fillStyle = fill; ctx.fillRect(x, y, w, h);
-            };
+            let tailWag = (this.state === 'walk' || this.state === 'idle') ? Math.sin(this.animTimer * 10) * 5 : 0;
 
-            let tailWag = (this.state === 'walk' || this.state === 'idle') ? Math.sin(this.animTimer * 10) * 4 : 0;
-            ctx.save(); ctx.translate(-12, -16 + bob); ctx.rotate(tailWag * Math.PI / 180);
-            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(-6, 2, 10, 6, -0.4, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = PALETTE.dogBlackLight; ctx.beginPath(); ctx.ellipse(-6, 2, 9, 5, -0.4, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = PALETTE.dogTan; ctx.beginPath(); ctx.ellipse(-12, 4, 5, 4, -0.4, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(-12, 4, 5, 4, -0.4, 0, Math.PI*2); ctx.stroke();
+            // --- ANÁLISIS DE LA FOTO: PELAJE ABUNDANTE Y EXPRESIVIDAD ---
+
+            // 1. COLA MUY TUPIDA (Fluffy tail)
+            ctx.save(); ctx.translate(-14, -14 + bob); ctx.rotate(tailWag * Math.PI / 180);
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(-8, 3, 14, 7, -0.2, 0, Math.PI*2); ctx.fill(); // Sombra/Volumen base
+            ctx.fillStyle = PALETTE.dogBlack; ctx.beginPath(); ctx.ellipse(-8, 3, 13, 6, -0.2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = PALETTE.dogTan; ctx.beginPath(); ctx.ellipse(-12, 6, 8, 3, -0.2, 0, Math.PI*2); ctx.fill(); // Mechones fuego inferiores
             ctx.restore();
 
-            drawOutlinedRect(ctx, -10, -8, 4, 8, PALETTE.dogTan); drawOutlinedRect(ctx, -2, -8+bob, 4, 8, PALETTE.dogTan);
-            drawOutlinedRect(ctx, 6, -8, 4, 8, PALETTE.dogTan); drawOutlinedRect(ctx, 13, -8-bob, 4, 8, PALETTE.dogTan);
-            ctx.fillStyle = PALETTE.dogTanShadow; ctx.fillRect(-10, -4, 2, 4); ctx.fillRect(6, -4, 2, 4); 
+            // 2. PATAS TRASERAS/LEJANAS (Más gruesas)
+            ctx.fillStyle = '#000'; ctx.fillRect(-11, -8, 6, 12); ctx.fillRect(7, -8, 6, 12);
+            ctx.fillStyle = PALETTE.dogTanShadow; ctx.fillRect(-10, -8, 4, 11); ctx.fillRect(8, -8, 4, 11);
 
-            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(2, -12 + bob, 16, 10, 0, 0, Math.PI*2); ctx.fill(); 
-            ctx.fillStyle = PALETTE.dogTan; ctx.beginPath(); ctx.ellipse(2, -12 + bob, 15, 9, 0, 0, Math.PI*2); ctx.fill();
-
-            ctx.fillStyle = PALETTE.dogBlack; ctx.beginPath(); ctx.ellipse(0, -15 + bob, 15, 7, -0.05, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.ellipse(10, -17 + bob, 10, 8, 0.2, 0, Math.PI*2); ctx.fill(); 
-            ctx.fillStyle = PALETTE.dogBlackLight; ctx.beginPath(); ctx.ellipse(-1, -17 + bob, 11, 3, -0.05, 0, Math.PI*2); ctx.fill();
-
-            drawOutlinedRect(ctx, 11, -26 + bob, 12, 12, PALETTE.dogTan); 
+            // 3. CUERPO VOLUMINOSO (Simulando el pelo abundante)
+            // Vientre y lomo base
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(-2, -14 + bob, 16, 11, 0, 0, Math.PI*2); ctx.fill(); 
+            ctx.fillStyle = PALETTE.dogTan; ctx.beginPath(); ctx.ellipse(-2, -14 + bob, 15, 10, 0, 0, Math.PI*2); ctx.fill();
             
-            ctx.fillStyle = '#000'; ctx.fillRect(19, -23 + bob, 9, 7); 
-            ctx.fillStyle = PALETTE.dogBlackLight; ctx.fillRect(20, -22 + bob, 6, 2); 
-            ctx.fillStyle = '#111'; ctx.fillRect(26, -24 + bob, 3, 3); 
+            // "Mane" o collar de pelo abundante en el pecho (Rasgo fuerte de la foto)
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(10, -14 + bob, 11, 12, 0.2, 0, Math.PI*2); ctx.fill(); 
+            ctx.fillStyle = PALETTE.dogTan; ctx.beginPath(); ctx.ellipse(10, -14 + bob, 10, 11, 0.2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = PALETTE.dogTan; ctx.beginPath(); ctx.moveTo(15, -10+bob); ctx.lineTo(22, -4+bob); ctx.lineTo(10, -2+bob); ctx.fill(); // Mechones pecho
+
+            // 4. MANTO NEGRO "SILLA DE MONTAR" (Cae orgánicamente por los hombros)
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(2, -18 + bob, 16, 9, -0.1, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = PALETTE.dogBlack; ctx.beginPath(); ctx.ellipse(2, -18 + bob, 15, 8, -0.1, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = PALETTE.dogBlackLight; ctx.beginPath(); ctx.ellipse(2, -20 + bob, 10, 3, -0.1, 0, Math.PI*2); ctx.fill();
+
+            // Cuello negro peludo
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(10, -22 + bob, 10, 9, 0.3, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = PALETTE.dogBlack; ctx.beginPath(); ctx.ellipse(10, -22 + bob, 9, 8, 0.3, 0, Math.PI*2); ctx.fill();
+
+            // 5. PATAS CERCANAS
+            ctx.fillStyle = '#000'; ctx.fillRect(-13, -6 + bob, 6, 10); ctx.fillRect(10, -6 - bob, 6, 10);
+            ctx.fillStyle = PALETTE.dogTan; ctx.fillRect(-12, -6 + bob, 4, 9); ctx.fillRect(11, -6 - bob, 4, 9);
+            ctx.fillStyle = '#000'; ctx.fillRect(-14, 2 + bob, 6, 3); ctx.fillRect(9, 2 - bob, 6, 3); // Pies/Garras
+
+            // 6. CABEZA Y ROSTRO EXPRESIVO
+            // Base cabeza
+            ctx.fillStyle = '#000'; ctx.fillRect(11, -30 + bob, 13, 13);
+            ctx.fillStyle = PALETTE.dogTan; ctx.fillRect(12, -29 + bob, 11, 11);
+
+            // Máscara oscura característica de su rostro
+            ctx.fillStyle = PALETTE.dogBlack;
+            ctx.fillRect(15, -30 + bob, 9, 9); // Frente y contorno ojos
+            ctx.fillRect(19, -24 + bob, 11, 6); // Hocico grueso y oscuro
             
-            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.moveTo(11, -26 + bob); ctx.lineTo(13, -37 + bob); ctx.lineTo(17, -26 + bob); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(16, -25 + bob); ctx.lineTo(19, -35 + bob); ctx.lineTo(22, -24 + bob); ctx.fill();
-            ctx.fillStyle = PALETTE.dogTan; ctx.beginPath(); ctx.moveTo(12, -26 + bob); ctx.lineTo(13, -33 + bob); ctx.lineTo(16, -26 + bob); ctx.fill(); 
-            ctx.beginPath(); ctx.moveTo(17, -25 + bob); ctx.lineTo(18, -31 + bob); ctx.lineTo(21, -25 + bob); ctx.fill();
+            // Nariz negra, grande y brillante
+            ctx.fillStyle = '#000'; ctx.fillRect(27, -25 + bob, 4, 4);
+            ctx.fillStyle = '#666'; ctx.fillRect(28, -24 + bob, 1, 1); 
 
-            ctx.fillStyle = '#000'; ctx.fillRect(15, -22+bob, 3, 3); ctx.fillStyle = '#fff'; ctx.fillRect(16, -22+bob, 1, 1);
-            ctx.fillStyle = '#8B4513'; ctx.fillRect(15, -23+bob, 3, 1); 
+            // Ojo vivo, atento y ceja de fuego
+            ctx.fillStyle = '#000'; ctx.fillRect(18, -26 + bob, 3, 3);
+            ctx.fillStyle = '#fff'; ctx.fillRect(19, -26 + bob, 1, 1); // Brillo de vida en el ojo
+            ctx.fillStyle = PALETTE.dogTan; ctx.fillRect(18, -29 + bob, 3, 2); // Ceja fuego (Rasgo del Pastor Alemán)
 
-            if(!isBeast) { 
-                ctx.fillStyle = '#000'; ctx.fillRect(21, -19 + bob, 5, 8); 
-                ctx.fillStyle = PALETTE.dogTongue; ctx.fillRect(22, -18 + bob, 4, 8); ctx.fillStyle = '#ff8fa3'; ctx.fillRect(23, -18 + bob, 2, 7);
-            } else { 
-                ctx.fillStyle = '#fff'; ctx.fillRect(22, -20 + bob, 1, 3); ctx.fillRect(25, -20 + bob, 1, 3); 
-                ctx.fillStyle = '#ff0000'; ctx.fillRect(15, -22+bob, 3, 3); 
+            // Orejas altas y muy peludas en la base
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.moveTo(11, -29 + bob); ctx.lineTo(12, -41 + bob); ctx.lineTo(17, -29 + bob); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(17, -29 + bob); ctx.lineTo(20, -39 + bob); ctx.lineTo(22, -29 + bob); ctx.fill();
+            ctx.fillStyle = PALETTE.dogTanShadow; 
+            ctx.beginPath(); ctx.moveTo(12, -29 + bob); ctx.lineTo(13, -37 + bob); ctx.lineTo(16, -29 + bob); ctx.fill(); 
+            ctx.beginPath(); ctx.moveTo(18, -29 + bob); ctx.lineTo(19, -35 + bob); ctx.lineTo(21, -29 + bob); ctx.fill();
+
+            // 7. SONRISA Y LENGUA GIGANTE FELIZ (Clave de la personalidad de la foto)
+            if(!isBeast) {
+                ctx.fillStyle = '#000'; ctx.fillRect(20, -18 + bob, 8, 5); // Boca abierta jadeando
+                ctx.fillStyle = '#fff'; ctx.fillRect(21, -17 + bob, 1, 3); ctx.fillRect(25, -17 + bob, 1, 2); // Dientes laterales
+                
+                // Lengua ancha y curva
+                ctx.fillStyle = PALETTE.dogTongue; 
+                ctx.beginPath(); ctx.ellipse(24, -13 + bob, 3, 6, 0.2, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ff8fa3'; ctx.fillRect(24, -16 + bob, 1, 6); // Brillo de saliva en la lengua
+            } else {
+                ctx.fillStyle = '#ff0000'; ctx.fillRect(18, -26 + bob, 3, 3); // Ojo demoníaco
+                ctx.fillStyle = '#fff'; ctx.fillRect(22, -18 + bob, 1, 4); ctx.fillRect(26, -18 + bob, 1, 4); // Colmillos largos
             }
 
             this.clearHitFlash(ctx); ctx.restore();
