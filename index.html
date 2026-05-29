@@ -53,9 +53,10 @@
         #mobile-controls {
             position: absolute; bottom: 10px; left: 0; width: 100%; height: 140px;
             pointer-events: none; display: none; z-index: 50;
+            touch-action: none; -webkit-user-select: none; user-select: none;
         }
 
-        .dpad-zone, .action-zone { pointer-events: auto; position: absolute; height: 100%; }
+        .dpad-zone, .action-zone { pointer-events: auto; position: absolute; height: 100%; touch-action: none; }
         .dpad-zone { left: 15px; bottom: 10px; width: 130px; }
         
         .action-zone { right: 15px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 280px;}
@@ -73,10 +74,12 @@
         #joystick-base {
             width: 100px; height: 100px; border-radius: 50%; background: rgba(30,15,10,0.7);
             border: 2px solid #d48040; position: absolute; bottom: 10px; left: 10px; box-shadow: 2px 2px 0 #000;
+            touch-action: none;
         }
         #joystick-stick {
             width: 44px; height: 44px; border-radius: 50%; background: #c0392b;
             position: absolute; top: 26px; left: 26px; border: 2px solid #fff; transition: transform 0.05s ease-out;
+            touch-action: none;
         }
 
         .screen {
@@ -198,13 +201,38 @@
     const victoryScreen = document.getElementById('victory-screen');
     const mobileControls = document.getElementById('mobile-controls');
 
-    if (splashScreen) {
-        window.setTimeout(() => {
-            splashScreen.style.display = 'none';
-        }, 3500);
+    const splashImage = splashScreen ? splashScreen.querySelector('img') : null;
+    const victoryImage = victoryScreen ? victoryScreen.querySelector('img') : null;
+    const SPLASH_VISIBLE_MS = 7000;
+    const SPLASH_MAX_WAIT_MS = 15000;
+
+    if (victoryImage) {
+        const preloadVictoryImage = new Image();
+        preloadVictoryImage.src = victoryImage.getAttribute('src');
     }
 
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+    if (splashScreen) {
+        let splashHidden = false;
+        const hideSplash = () => {
+            if (splashHidden) return;
+            splashHidden = true;
+            splashScreen.style.display = 'none';
+        };
+        const scheduleSplashHide = () => {
+            window.setTimeout(hideSplash, SPLASH_VISIBLE_MS);
+        };
+
+        if (splashImage && !splashImage.complete) {
+            splashImage.addEventListener('load', scheduleSplashHide, { once: true });
+            splashImage.addEventListener('error', scheduleSplashHide, { once: true });
+            window.setTimeout(hideSplash, SPLASH_MAX_WAIT_MS);
+        } else {
+            scheduleSplashHide();
+        }
+    }
+
+    const hasTouchControls = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    const isMobile = hasTouchControls || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
     let lastTime = 0, cameraX = 0, gameState = 'start', currentLevel = 1, levelProgress = 0;
     
@@ -371,35 +399,67 @@
         const joyBase = document.getElementById('joystick-base');
         const dpad = document.getElementById('dpad');
         let joyCenter = {x:0, y:0};
+        let activePointerId = null;
 
-        dpad.addEventListener('touchstart', e => { 
-            e.preventDefault(); 
-            const touch = e.changedTouches[0];
+        function startJoystick(point) {
             const rect = dpad.getBoundingClientRect();
             
-            joyCenter = { x: touch.clientX, y: touch.clientY };
+            joyCenter = { x: point.clientX, y: point.clientY };
             
-            let baseX = touch.clientX - rect.left - 50; 
-            let baseY = touch.clientY - rect.top - 50;
+            let baseX = point.clientX - rect.left - 50; 
+            let baseY = point.clientY - rect.top - 50;
             
             joyBase.style.left = baseX + 'px';
             joyBase.style.top = baseY + 'px';
             joyBase.style.bottom = 'auto'; 
 
-            updateJoystick(touch); 
-        }, {passive: false});
+            updateJoystick(point);
+        }
 
-        dpad.addEventListener('touchmove', e => { e.preventDefault(); updateJoystick(e.changedTouches[0]); }, {passive: false});
-
-        dpad.addEventListener('touchend', e => { 
-            e.preventDefault(); 
+        function resetJoystick() {
             joyData.active = false; joyData.dx = 0; joyData.dy = 0; 
             joyStick.style.transform = `translate(0px, 0px)`; 
             
             joyBase.style.left = '10px';
             joyBase.style.bottom = '10px';
             joyBase.style.top = 'auto';
+        }
+
+        dpad.addEventListener('touchstart', e => { 
+            e.preventDefault(); 
+            startJoystick(e.changedTouches[0]); 
         }, {passive: false});
+
+        dpad.addEventListener('touchmove', e => { e.preventDefault(); updateJoystick(e.changedTouches[0]); }, {passive: false});
+
+        dpad.addEventListener('touchend', e => { 
+            e.preventDefault(); 
+            resetJoystick();
+        }, {passive: false});
+
+        dpad.addEventListener('touchcancel', e => { e.preventDefault(); resetJoystick(); }, {passive: false});
+
+        if (window.PointerEvent) {
+            dpad.addEventListener('pointerdown', e => {
+                e.preventDefault();
+                activePointerId = e.pointerId;
+                if (dpad.setPointerCapture) dpad.setPointerCapture(activePointerId);
+                startJoystick(e);
+            });
+            dpad.addEventListener('pointermove', e => {
+                if (activePointerId !== e.pointerId) return;
+                e.preventDefault();
+                updateJoystick(e);
+            });
+            const stopPointer = e => {
+                if (activePointerId !== e.pointerId) return;
+                e.preventDefault();
+                activePointerId = null;
+                resetJoystick();
+            };
+            dpad.addEventListener('pointerup', stopPointer);
+            dpad.addEventListener('pointercancel', stopPointer);
+        }
 
         function updateJoystick(touch) {
             joyData.active = true;
