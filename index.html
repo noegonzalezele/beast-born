@@ -85,6 +85,22 @@
             justify-content: center; align-items: center; text-align: center;
             padding: 20px; box-sizing: border-box; border: 4px solid #d48040; z-index: 100;
         }
+        #splash-screen {
+            background: #000; padding: 0; border: none; z-index: 120; overflow: hidden;
+        }
+        #splash-screen img {
+            width: 100%; height: 100%; object-fit: contain; display: block;
+        }
+        #victory-screen {
+            background: #000; padding: 0; border: none; overflow: hidden;
+        }
+        #victory-screen img {
+            width: 100%; height: 100%; object-fit: contain; display: block;
+        }
+        #victory-screen .victory-actions {
+            position: absolute; left: 0; right: 0; bottom: 24px;
+            display: flex; justify-content: center; z-index: 1; pointer-events: auto;
+        }
         h1 { color: #ff3f3f; text-shadow: 3px 3px 0 #78281f; font-size: 32px; margin-bottom: 5px; letter-spacing: 2px; }
         h2 { color: #d48040; font-size: 12px; margin-bottom: 15px; text-shadow: 2px 2px 0 #000; }
         p { font-size: 10px; line-height: 1.8; max-width: 600px; margin-bottom: 20px; color: #ccc; text-shadow: 1px 1px 0 #000; }
@@ -132,6 +148,10 @@
         </div>
     </div>
 
+    <div id="splash-screen" class="screen">
+        <img src="Beat_Born_Last_Blood_portada.png" alt="Beastborn Last Blood">
+    </div>
+
     <div id="start-screen" class="screen">
         <h1 style="color:#d35400;">BEASTBORN</h1>
         <h2>- THE ARCADE GAME -</h2>
@@ -158,9 +178,10 @@
     </div>
 
     <div id="victory-screen" class="screen">
-        <h1 style="color:#f1c40f;">YOU WIN</h1>
-        <p style="color:#fff; font-size:12px;">¡The Alpha-Chimera ha caído!</p>
-        <button class="btn-menu" onclick="location.reload()">PLAY AGAIN</button>
+        <img src="Gemini_Imagen_Final.png" alt="Fin de la Bestia">
+        <div class="victory-actions">
+            <button class="btn-menu" onclick="location.reload()">COMENZAR JUEGO</button>
+        </div>
     </div>
 </div>
 
@@ -170,11 +191,18 @@
     ctx.imageSmoothingEnabled = false;
     
     const uiLayer = document.getElementById('ui-layer');
+    const splashScreen = document.getElementById('splash-screen');
     const startScreen = document.getElementById('start-screen');
     const gameOverScreen = document.getElementById('game-over-screen');
     const levelClearScreen = document.getElementById('level-clear-screen');
     const victoryScreen = document.getElementById('victory-screen');
     const mobileControls = document.getElementById('mobile-controls');
+
+    if (splashScreen) {
+        window.setTimeout(() => {
+            splashScreen.style.display = 'none';
+        }, 3500);
+    }
 
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 
@@ -692,7 +720,7 @@
 
                 // Se agregó keys.jump al detector de salto
                 if((keys.jump || keys.alt || keys.shift || keys.v) && this.isGrounded) { 
-                    this.vz = 9.0; 
+                    this.vz = 7.5; 
                     keys.alt = false; keys.shift = false; keys.v = false; keys.jump = false; 
                     playRetroSound('jump'); 
                 }
