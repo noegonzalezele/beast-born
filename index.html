@@ -57,7 +57,7 @@
         }
 
         .dpad-zone, .action-zone { pointer-events: auto; position: absolute; height: 100%; touch-action: none; }
-        .dpad-zone { left: 15px; bottom: 10px; width: 130px; }
+        .dpad-zone { left: 15px; bottom: 10px; width: 130px; z-index: 2; }
         
         .action-zone { right: 15px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 280px;}
         .action-row { display: flex; gap: 10px; }
@@ -74,7 +74,7 @@
         #joystick-base {
             width: 100px; height: 100px; border-radius: 50%; background: rgba(30,15,10,0.7);
             border: 2px solid #d48040; position: absolute; bottom: 10px; left: 10px; box-shadow: 2px 2px 0 #000;
-            touch-action: none;
+            touch-action: none; display: block; visibility: visible; z-index: 2;
         }
         #joystick-stick {
             width: 44px; height: 44px; border-radius: 50%; background: #c0392b;
@@ -233,6 +233,16 @@
 
     const hasTouchControls = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
     const isMobile = hasTouchControls || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+    let touchControlsConfirmed = hasTouchControls;
+
+    const confirmTouchControls = () => {
+        touchControlsConfirmed = true;
+        if (gameState === 'playing') mobileControls.style.display = 'block';
+    };
+    window.addEventListener('touchstart', confirmTouchControls, { passive: true });
+    window.addEventListener('pointerdown', e => {
+        if (e.pointerType === 'touch' || e.pointerType === 'pen') confirmTouchControls();
+    }, { passive: true });
 
     let lastTime = 0, cameraX = 0, gameState = 'start', currentLevel = 1, levelProgress = 0;
     
@@ -1570,7 +1580,7 @@
         cameraX = 0; levelProgress = 0; bossActive = false; currentBoss = null; hitStopFrames = 0;
         waveTimer = 1; gameState = 'playing';
 
-        uiLayer.style.display = 'block'; if(isMobile) mobileControls.style.display = 'block';
+        uiLayer.style.display = 'block'; if(isMobile || touchControlsConfirmed) mobileControls.style.display = 'block';
         startScreen.style.display = 'none'; gameOverScreen.style.display = 'none'; levelClearScreen.style.display = 'none'; victoryScreen.style.display = 'none';
 
         lastTime = performance.now(); requestAnimationFrame(loop);
