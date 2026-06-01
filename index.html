@@ -400,6 +400,44 @@
     // Se añadió 'jump: false' para uso exclusivo de la pantalla táctil
     const keys = { arrowup: false, arrowdown: false, arrowleft: false, arrowright: false, ' ': false, alt: false, shift: false, v: false, x: false, c: false, z: false, jump: false };
     const joyData = { active: false, dx: 0, dy: 0 };
+    const gamepadData = { active: false, dx: 0, dy: 0 };
+    const gamepadKeys = { ' ': false, jump: false, x: false, c: false, z: false };
+    const previousGamepadButtons = { jump: false, magic: false, pause: false };
+
+    function updateGamepadInput() {
+        if (!navigator.getGamepads) return;
+        const gamepads = navigator.getGamepads();
+        const gamepad = Array.from(gamepads).find(pad => pad && pad.connected);
+        if (!gamepad) {
+            gamepadData.active = false; gamepadData.dx = 0; gamepadData.dy = 0;
+            gamepadKeys[' '] = false; gamepadKeys.jump = false; gamepadKeys.x = false; gamepadKeys.c = false; gamepadKeys.z = false;
+            previousGamepadButtons.jump = false; previousGamepadButtons.magic = false; previousGamepadButtons.pause = false;
+            return;
+        }
+
+        const buttonPressed = index => !!(gamepad.buttons[index] && gamepad.buttons[index].pressed);
+        let dx = Math.abs(gamepad.axes[0] || 0) >= 0.2 ? gamepad.axes[0] : 0;
+        let dy = Math.abs(gamepad.axes[1] || 0) >= 0.2 ? gamepad.axes[1] : 0;
+        if (buttonPressed(14)) dx = -1;
+        if (buttonPressed(15)) dx = 1;
+        if (buttonPressed(12)) dy = -1;
+        if (buttonPressed(13)) dy = 1;
+        gamepadData.active = dx !== 0 || dy !== 0;
+        gamepadData.dx = dx; gamepadData.dy = dy;
+
+        const jumpPressed = buttonPressed(0);
+        const magicPressed = buttonPressed(1);
+        const pausePressed = buttonPressed(9);
+        gamepadKeys[' '] = buttonPressed(2);
+        gamepadKeys.z = buttonPressed(3);
+        gamepadKeys.c = buttonPressed(4);
+        gamepadKeys.jump = jumpPressed && !previousGamepadButtons.jump;
+        gamepadKeys.x = magicPressed && !previousGamepadButtons.magic;
+        if (pausePressed && !previousGamepadButtons.pause) togglePause();
+        previousGamepadButtons.jump = jumpPressed;
+        previousGamepadButtons.magic = magicPressed;
+        previousGamepadButtons.pause = pausePressed;
+    }
 
     window.addEventListener('keydown', e => { let k=e.key.toLowerCase(); if(k===' ')k=' '; if(keys.hasOwnProperty(k)){ keys[k]=true; if(['arrowup','arrowdown','arrowleft','arrowright',' ','alt','shift','v'].includes(k)) e.preventDefault();} });
     window.addEventListener('keyup', e => { let k=e.key.toLowerCase(); if(k===' ')k=' '; if(keys.hasOwnProperty(k)){ keys[k]=false; if(['arrowup','arrowdown','arrowleft','arrowright',' ','alt','shift','v'].includes(k)) e.preventDefault();} });
@@ -752,10 +790,10 @@
             if (this.state !== 'attack' && this.state !== 'jump_kick') { this.isAttacking = false; this.swordSwingArc = 0; }
             if (this.state !== 'pet') this.petTimer = 0;
 
-            if(keys.z && this.switchWeaponTimer <= 0) { this.currentWeaponIndex = (this.currentWeaponIndex + 1) % this.weapons.length; this.switchWeaponTimer = 0.25; playRetroSound('potion'); }
+            if((keys.z || gamepadKeys.z) && this.switchWeaponTimer <= 0) { this.currentWeaponIndex = (this.currentWeaponIndex + 1) % this.weapons.length; this.switchWeaponTimer = 0.25; playRetroSound('potion'); }
             if(this.switchWeaponTimer > 0) this.switchWeaponTimer -= dt;
 
-            if(keys.c && this.isGrounded && !this.isAttacking) {
+            if((keys.c || gamepadKeys.c) && this.isGrounded && !this.isAttacking) {
                 let distToDog = Math.hypot(this.x - dog.x, this.y - dog.y);
                 this.vx = 0; this.vy = 0;
                 if(distToDog < 45) {
@@ -780,6 +818,7 @@
                 let dx = 0, dy = 0;
                 if(keys.arrowup) dy -= 1; if(keys.arrowdown) dy += 1; if(keys.arrowleft) dx -= 1; if(keys.arrowright) dx += 1;
                 if(joyData.active) { dx = joyData.dx; dy = joyData.dy; }
+                if(gamepadData.active) { dx = gamepadData.dx; dy = gamepadData.dy; }
 
                 if(dx !== 0 || dy !== 0) {
                     let len = Math.hypot(dx, dy);
@@ -789,13 +828,13 @@
                 } else { this.vx = 0; this.vy = 0; this.state = 'idle'; }
 
                 // Se agregó keys.jump al detector de salto
-                if((keys.jump || keys.alt || keys.shift || keys.v) && this.isGrounded) { 
+                if((keys.jump || gamepadKeys.jump || keys.alt || keys.shift || keys.v) && this.isGrounded) { 
                     this.vz = 7.5; 
-                    keys.alt = false; keys.shift = false; keys.v = false; keys.jump = false; 
+                    keys.alt = false; keys.shift = false; keys.v = false; keys.jump = false; gamepadKeys.jump = false; 
                     playRetroSound('jump'); 
                 }
 
-                if(keys[' '] && this.attackCooldown <= 0) {
+                if((keys[' '] || gamepadKeys[' ']) && this.attackCooldown <= 0) {
                     let currentWepId = isBeast ? 'beast_claws' : this.weapons[this.currentWeaponIndex].id;
                     let currentWep = WEAPONS[currentWepId];
 
@@ -827,7 +866,7 @@
                         else { playRetroSound('slash'); this.checkHit(false); }
                     }
                 }
-                if(keys.x && this.inventory.length > 0) { keys.x = false; useItem(this.inventory.shift()); }
+                if((keys.x || gamepadKeys.x) && this.inventory.length > 0) { keys.x = false; gamepadKeys.x = false; useItem(this.inventory.shift()); }
             }
 
             if(this.attackCooldown > 0) this.attackCooldown -= dt;
@@ -1020,7 +1059,7 @@
             if(this.coverTimer > 0) this.coverTimer -= dt;
 
             let canAttackBoss = (this.activePowerup !== null) || (player.hp <= 20); 
-            let isBeingCalled = keys.c && player.isGrounded && !player.isAttacking;
+            let isBeingCalled = (keys.c || gamepadKeys.c) && player.isGrounded && !player.isAttacking;
             let isTakingCover = this.coverTimer > 0;
 
             if (this.target) {
@@ -1881,6 +1920,7 @@
     }
 
     function loop(timestamp) {
+        updateGamepadInput();
         if(gameState === 'start') { requestAnimationFrame(loop); return; }
         let dt = Math.min((timestamp - lastTime) / 1000, 0.1); lastTime = timestamp;
 
