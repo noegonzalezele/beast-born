@@ -59,8 +59,14 @@
         .dpad-zone, .action-zone { pointer-events: auto; position: absolute; height: 100%; touch-action: none; }
         .dpad-zone { left: 15px; bottom: 10px; width: 130px; z-index: 2; }
         
-        .action-zone { right: 15px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 280px;}
-        .action-row { display: flex; gap: 10px; }
+        .action-zone { right: 15px; bottom: 10px; width: 280px; }
+        .secondary-actions { position: absolute; left: 0; bottom: 7px; display: flex; flex-direction: column; gap: 8px; }
+        .xbox-buttons { position: absolute; right: 0; bottom: 0; width: 164px; height: 140px; }
+        .xbox-buttons .btn { position: absolute; }
+        #btn-u { top: 0; left: 56px; }
+        #btn-j { top: 44px; left: 0; }
+        #btn-kick { top: 44px; left: 112px; }
+        #btn-k { top: 88px; left: 56px; }
 
         .btn {
             width: 52px; height: 52px; border-radius: 50%; background: rgba(30,15,10,0.85);
@@ -139,14 +145,15 @@
             <div id="joystick-base"><div id="joystick-stick"></div></div>
         </div>
         <div class="action-zone">
-            <div class="action-row">
-                <div class="btn" id="btn-u">MAGIA</div>
+            <div class="secondary-actions">
                 <div class="btn" id="btn-w">ARMA</div>
                 <div class="btn" id="btn-p">CARIC</div>
             </div>
-            <div class="action-row">
-                <div class="btn" id="btn-k">SALTO</div>
+            <div class="xbox-buttons">
+                <div class="btn" id="btn-u">MAGIA</div>
                 <div class="btn" id="btn-j">ATACA</div>
+                <div class="btn" id="btn-kick">PATADA</div>
+                <div class="btn" id="btn-k">SALTO</div>
             </div>
         </div>
     </div>
@@ -160,7 +167,7 @@
         <h2>- THE ARCADE GAME -</h2>
         <p>Golpea, lanza y sobrevive a oleadas de mutantes en este clásico Beat 'Em Up.<br>
         Encuentra armas, destruye barriles y desata los Combos.<br><br>
-        PC: Flechas (Mover), Espacio (Atacar/Combo), Shift o V (Saltar), X (Magia), Z (Cambiar Arma), C (Acariciar).<br>
+        PC: Flechas (Mover), Espacio (Atacar/Combo), F (Patada), Shift o V (Saltar), X (Magia), Z (Cambiar Arma), C (Acariciar).<br>
         MÓVIL: Joystick izquierdo, Botones dorados.</p>
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <button class="btn-menu" onclick="startGame()">INSERT COIN (PLAY)</button>
@@ -398,11 +405,13 @@
     }
 
     // Se añadió 'jump: false' para uso exclusivo de la pantalla táctil
-    const keys = { arrowup: false, arrowdown: false, arrowleft: false, arrowright: false, ' ': false, alt: false, shift: false, v: false, x: false, c: false, z: false, jump: false };
+    const keys = { arrowup: false, arrowdown: false, arrowleft: false, arrowright: false, ' ': false, alt: false, shift: false, v: false, x: false, c: false, z: false, f: false, jump: false, kick: false };
     const joyData = { active: false, dx: 0, dy: 0 };
     const gamepadData = { active: false, dx: 0, dy: 0 };
-    const gamepadKeys = { ' ': false, jump: false, x: false, c: false, z: false };
-    const previousGamepadButtons = { jump: false, magic: false, pause: false };
+    const gamepadKeys = { ' ': false, jump: false, kick: false, x: false, c: false, z: false };
+    const previousGamepadButtons = { jump: false, magic: false, start: false, fullscreen: false };
+    let previousAttackPressed = false;
+    let suppressAttackUntilRelease = false;
 
     function updateGamepadInput() {
         if (!navigator.getGamepads) return;
@@ -410,8 +419,8 @@
         const gamepad = Array.from(gamepads).find(pad => pad && pad.connected);
         if (!gamepad) {
             gamepadData.active = false; gamepadData.dx = 0; gamepadData.dy = 0;
-            gamepadKeys[' '] = false; gamepadKeys.jump = false; gamepadKeys.x = false; gamepadKeys.c = false; gamepadKeys.z = false;
-            previousGamepadButtons.jump = false; previousGamepadButtons.magic = false; previousGamepadButtons.pause = false;
+            gamepadKeys[' '] = false; gamepadKeys.jump = false; gamepadKeys.kick = false; gamepadKeys.x = false; gamepadKeys.c = false; gamepadKeys.z = false;
+            previousGamepadButtons.jump = false; previousGamepadButtons.magic = false; previousGamepadButtons.start = false; previousGamepadButtons.fullscreen = false;
             return;
         }
 
@@ -426,17 +435,39 @@
         gamepadData.dx = dx; gamepadData.dy = dy;
 
         const jumpPressed = buttonPressed(0);
-        const magicPressed = buttonPressed(1);
-        const pausePressed = buttonPressed(9);
+        const magicPressed = buttonPressed(3);
+        const startPressed = buttonPressed(9);
+        const fullscreenPressed = buttonPressed(8);
         gamepadKeys[' '] = buttonPressed(2);
-        gamepadKeys.z = buttonPressed(3);
+        gamepadKeys.kick = buttonPressed(1);
+        gamepadKeys.z = buttonPressed(5);
         gamepadKeys.c = buttonPressed(4);
         gamepadKeys.jump = jumpPressed && !previousGamepadButtons.jump;
         gamepadKeys.x = magicPressed && !previousGamepadButtons.magic;
-        if (pausePressed && !previousGamepadButtons.pause) togglePause();
+        if (startPressed && !previousGamepadButtons.start) {
+            if (gameState === 'start') {
+                if ((!splashScreen || splashScreen.style.display === 'none') && window.startGame) window.startGame();
+            }
+            else togglePause();
+        }
+        if (fullscreenPressed && !previousGamepadButtons.fullscreen) toggleFullscreen();
         previousGamepadButtons.jump = jumpPressed;
         previousGamepadButtons.magic = magicPressed;
-        previousGamepadButtons.pause = pausePressed;
+        previousGamepadButtons.start = startPressed;
+        previousGamepadButtons.fullscreen = fullscreenPressed;
+    }
+
+    function handleContextualAttack() {
+        const attackPressed = keys[' '] || gamepadKeys[' '];
+        if (!attackPressed) suppressAttackUntilRelease = false;
+        if (attackPressed && !previousAttackPressed) {
+            if (gameState === 'levelclear' && levelClearScreen.style.display === 'flex') {
+                suppressAttackUntilRelease = true; nextLevel();
+            } else if (gameState === 'gameover' && gameOverScreen.style.display === 'flex') {
+                suppressAttackUntilRelease = true; window.resetGame();
+            }
+        }
+        previousAttackPressed = attackPressed;
     }
 
     window.addEventListener('keydown', e => { let k=e.key.toLowerCase(); if(k===' ')k=' '; if(keys.hasOwnProperty(k)){ keys[k]=true; if(['arrowup','arrowdown','arrowleft','arrowright',' ','alt','shift','v'].includes(k)) e.preventDefault();} });
@@ -531,7 +562,7 @@
             btn.addEventListener('mouseleave', release);
         };
         // Se cambió 'v' por 'jump' para independizar el botón de los teclados virtuales
-        bindBtn('btn-j', ' '); bindBtn('btn-k', 'jump'); bindBtn('btn-u', 'x'); bindBtn('btn-p', 'c'); bindBtn('btn-w', 'z');
+        bindBtn('btn-j', ' '); bindBtn('btn-k', 'jump'); bindBtn('btn-kick', 'kick'); bindBtn('btn-u', 'x'); bindBtn('btn-p', 'c'); bindBtn('btn-w', 'z');
     };
     setupTouch();
 
@@ -834,13 +865,14 @@
                     playRetroSound('jump'); 
                 }
 
-                if((keys[' '] || gamepadKeys[' ']) && this.attackCooldown <= 0) {
+                if((keys.f || keys.kick || gamepadKeys.kick) && this.attackCooldown <= 0) this.performKick();
+
+                if((keys[' '] || gamepadKeys[' ']) && !suppressAttackUntilRelease && this.attackCooldown <= 0) {
                     let currentWepId = isBeast ? 'beast_claws' : this.weapons[this.currentWeaponIndex].id;
                     let currentWep = WEAPONS[currentWepId];
 
                     if(!this.isGrounded) {
-                        this.state = 'jump_kick'; this.isAttacking = true; this.animTimer = 0; this.vx = this.dir * 4.0; this.vy = 0; this.attackCooldown = 0.35;
-                        playRetroSound('slash'); this.checkHit(true); 
+                        this.performKick();
                     } else {
                         this.state = 'attack'; this.isAttacking = true; this.animTimer = 0; this.swordSwingArc = 1.0; this.vx = 0; this.vy = 0; 
                         
@@ -878,6 +910,11 @@
             if (this.x < cameraX + 16) this.x = cameraX + 16;
             if (bossActive && this.x > cameraX + GAME_WIDTH - 16) this.x = cameraX + GAME_WIDTH - 16;
             if(this.x - cameraX > GAME_WIDTH * 0.55 && !bossActive) cameraX = this.x - GAME_WIDTH * 0.55;
+        }
+
+        performKick() {
+            this.state = 'jump_kick'; this.isAttacking = true; this.animTimer = 0; this.vx = this.dir * 4.0; this.vy = 0; this.attackCooldown = 0.35;
+            playRetroSound('slash'); this.checkHit(true);
         }
 
         consumeAmmo() {
@@ -1609,6 +1646,7 @@
     let player, dog, currentBoss;
     let enemies = [], items = [], particles = [], projectiles = [], barrels = [], floatingTexts = [];
     let waveTimer = 0, bossActive = false, screenShake = 0;
+    let gameLoopStarted = false;
 
     function triggerScreenShake(power) { screenShake = power; }
     function createParticles(x, y, color, count) { for(let i=0; i<count; i++) particles.push(new Particle(x, y, color, 5.5)); }
@@ -1622,7 +1660,7 @@
         uiLayer.style.display = 'block'; if(isMobile || touchControlsConfirmed) mobileControls.style.display = 'block';
         startScreen.style.display = 'none'; gameOverScreen.style.display = 'none'; levelClearScreen.style.display = 'none'; victoryScreen.style.display = 'none';
 
-        lastTime = performance.now(); requestAnimationFrame(loop);
+        if (!gameLoopStarted) { gameLoopStarted = true; lastTime = performance.now(); requestAnimationFrame(loop); }
     }
 
     function spawnEnemy() {
@@ -1921,6 +1959,7 @@
 
     function loop(timestamp) {
         updateGamepadInput();
+        handleContextualAttack();
         if(gameState === 'start') { requestAnimationFrame(loop); return; }
         let dt = Math.min((timestamp - lastTime) / 1000, 0.1); lastTime = timestamp;
 
@@ -2006,6 +2045,12 @@
 
         requestAnimationFrame(loop);
     }
+
+    function pollGamepadOnStartScreen() {
+        if (!gameLoopStarted && gameState === 'start' && (!splashScreen || splashScreen.style.display === 'none')) updateGamepadInput();
+        if (!gameLoopStarted) requestAnimationFrame(pollGamepadOnStartScreen);
+    }
+    requestAnimationFrame(pollGamepadOnStartScreen);
 </script>
 </body>
 </html>
